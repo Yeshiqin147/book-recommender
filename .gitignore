@@ -1,0 +1,13 @@
+# 原始大文件不进 Git
+data/BX-*.csv
+data/*.zip
+data/*.csv
+data/douban_raw/
+!data/processed/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
