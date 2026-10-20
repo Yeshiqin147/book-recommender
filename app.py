@@ -2,10 +2,14 @@
 书籍个性化推荐 - Streamlit 主程序
 运行：streamlit run app.py
 """
+import html
 import pandas as pd
 import streamlit as st
 
-from model import load_books, popular_books, recommend, mf_recommend
+from model import (
+    load_books, load_chinese_books, load_catalog, popular_chinese_books,
+    CN_COVER_COLORS, popular_books, recommend, mf_recommend,
+)
 
 st.set_page_config(page_title="书籍推荐小助手", page_icon="📚", layout="wide")
 
@@ -13,11 +17,33 @@ if "my_ratings" not in st.session_state:
     st.session_state.my_ratings = {}
 
 
+def cn_cover_html(row):
+    """为中文书生成一张样式书封（按分类配色）"""
+    color = CN_COVER_COLORS.get(row.get("Category", ""), "#5A5A7A")
+    title = html.escape(row["Book-Title"])
+    author = html.escape(str(row["Book-Author"]))
+    cat = html.escape(str(row.get("Category", "")))
+    return (
+        f'<div style="width:100px;height:150px;background:{color};border-radius:6px;'
+        f'color:#fff;display:flex;flex-direction:column;justify-content:center;'
+        f'align-items:center;padding:10px;text-align:center;box-shadow:0 2px 8px '
+        f'rgba(0,0,0,.25);font-family:\'Microsoft YaHei\',sans-serif;flex-shrink:0;">'
+        f'<div style="font-size:12px;font-weight:bold;line-height:1.35;'
+        f'word-break:break-all;">《{title}》</div>'
+        f'<div style="font-size:10px;opacity:.9;margin-top:8px;">{author}</div>'
+        f'<div style="font-size:8px;opacity:.75;margin-top:auto;background:rgba(255,255,255,.22);'
+        f'border-radius:3px;padding:1px 6px;">{cat}</div></div>'
+    )
+
+
 def render_book_card(row, rank=None):
     """渲染单本书的卡片：左封面 + 右信息"""
     col_img, col_info = st.columns([1, 3])
     with col_img:
-        st.image(row["cover"], width=100)
+        if row.get("is_chinese", False):
+            st.markdown(cn_cover_html(row), unsafe_allow_html=True)
+        else:
+            st.image(row["cover"], width=100)
     with col_info:
         title = f"**《{row['Book-Title']}》**"
         if rank:
@@ -25,7 +51,12 @@ def render_book_card(row, rank=None):
         st.markdown(title)
         st.write(f"✍️ {row['Book-Author']} · {int(row['Year-Of-Publication'])}")
         st.write(f"🏛️ {row['Publisher']}")
-        if "avg_rating" in row and pd.notna(row.get("avg_rating")):
+        if row.get("is_chinese", False):
+            st.write(
+                f"⭐ 豆瓣 {row['douban_rating']:.1f} · "
+                f"{int(row['rating_count']):,}人评分 · 分类：{row['Category']}"
+            )
+        elif "avg_rating" in row and pd.notna(row.get("avg_rating")):
             st.write(f"⭐ 平均 {row['avg_rating']:.1f}/10 · {int(row['n_ratings'])}人评分")
 
 
@@ -120,4 +151,11 @@ else:
     pop = popular_books(n=10)
     for i, row in pop.iterrows():
         render_book_card(row)
+        st.divider()
+
+    st.subheader("🇨🇳 中文书目精选（真实豆瓣高分书）")
+    st.caption("书目与评分为豆瓣读书公开数据 · 精选常用书目演示")
+    cn_pop = popular_chinese_books(n=12)
+    for i, row in cn_pop.iterrows():
+        render_book_card(row, rank=i + 1)
         st.divider()

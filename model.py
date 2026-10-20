@@ -35,6 +35,44 @@ def load_ratings() -> pd.DataFrame:
     return pd.read_csv(DATA_DIR / "ratings.csv")
 
 
+# 中文书封面配色（按分类）
+CN_COVER_COLORS = {
+    "文学": "#5B8DB8", "科幻": "#3E7CB1", "历史": "#9A6B4F",
+    "社科": "#6B8E5A", "商业": "#C77E4B", "心理": "#7D6BA6",
+    "散文": "#8FA6A0", "古典": "#A0522D", "热门": "#C2574E",
+    "童书": "#E8A87C", "科普": "#4E8D7C", "哲学": "#5A5A7A",
+}
+
+
+@st.cache_data
+def load_chinese_books() -> pd.DataFrame:
+    """加载中文书目（真实豆瓣高分精选，评分与书目为豆瓣公开数据）"""
+    df = pd.read_csv(DATA_DIR / "chinese_books.csv", encoding="utf-8")
+    df["Language"] = "Chinese"
+    df["is_chinese"] = True
+    return df
+
+
+@st.cache_data
+def load_catalog() -> pd.DataFrame:
+    """合并中英文书目，作为检索/展示的完整目录"""
+    en = load_books()
+    en["Language"] = "English"
+    en["is_chinese"] = False
+    en["Category"] = ""
+    en["douban_rating"] = pd.NA
+    en["rating_count"] = pd.NA
+    cn = load_chinese_books()
+    return pd.concat([en, cn], ignore_index=True)
+
+
+def popular_chinese_books(n: int = 10) -> pd.DataFrame:
+    """按豆瓣评分 + 评分人数排序的中文热门书"""
+    cn = load_chinese_books().copy()
+    cn["popularity"] = cn["douban_rating"] * (cn["rating_count"] / 1000).clip(lower=1)
+    return cn.sort_values("popularity", ascending=False).head(n).reset_index(drop=True)
+
+
 @st.cache_resource
 def build_knn_index():
     """

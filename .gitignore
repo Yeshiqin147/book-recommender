@@ -11,3 +11,6 @@ __pycache__/
 .venv/
 venv/
 .env
+
+# Streamlit 运行日志
+_streamlit_*.txt
