@@ -5,7 +5,7 @@
 import pandas as pd
 import streamlit as st
 
-from model import load_books, popular_books, recommend
+from model import load_books, popular_books, recommend, mf_recommend
 
 st.set_page_config(page_title="书籍推荐小助手", page_icon="📚", layout="wide")
 
@@ -31,6 +31,14 @@ def render_book_card(row, rank=None):
 
 # ---------- 侧边栏 ----------
 with st.sidebar:
+    algo = st.radio(
+        "🔀 推荐算法",
+        ["矩阵分解 SVD（评分更准）", "物品协同过滤 ItemCF（召回更广）"],
+        index=0,
+        help="SVD 预测评分更准；ItemCF 找回你喜欢的书、覆盖更广",
+    )
+    algo_key = "mf" if algo.startswith("矩阵分解") else "itemcf"
+
     st.header("✍️ 给你看过的书打分")
     books = load_books()
 
@@ -83,11 +91,24 @@ with st.sidebar:
 
 # ---------- 主区 ----------
 st.title("📚 书籍个性化推荐小助手")
-st.caption("基于 Book-Crossing 数据集 · 物品协同过滤（Item-based CF）")
+st.caption("基于 Book-Crossing 数据集 · 支持 物品协同过滤（ItemCF）与 矩阵分解（SVD） 两种算法")
+
+with st.expander("🧪 两种算法怎么选？评估结论在这里", expanded=False):
+    st.markdown(
+        "**评估口径**：评分 8:2 切分；RMSE 衡量评分预测误差，Recall@10 衡量能否找回用户真正喜欢的书。\n\n"
+        "| 指标 | 矩阵分解 SVD | 物品协同过滤 |\n"
+        "|---|---|---|\n"
+        "| RMSE（↓ 好） | **1.51** | 1.64 |\n"
+        "| Recall@10（↑ 好） | 0.06 | **0.17** |\n"
+        "| 覆盖率（↑ 好） | 0.58 | **0.71** |\n\n"
+        "**结论**：SVD 预测评分更准，但 ItemCF 在召回与多样性上更强。两者存在权衡，你可切换体验差异。\n\n"
+        "*运行 `python evaluate.py` 可复现以上数字。*"
+    )
 
 if st.session_state.my_ratings:
-    st.subheader("🎯 为你推荐")
-    recs = recommend(st.session_state.my_ratings, n=10)
+    st.subheader(f"🎯 为你推荐（{algo}）")
+    recs = recommend(st.session_state.my_ratings, n=10) if algo_key == "itemcf" \
+        else mf_recommend(st.session_state.my_ratings, n=10)
     if len(recs) == 0:
         st.warning("数据不足，换几本书再试试")
     else:
