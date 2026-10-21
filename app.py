@@ -100,8 +100,13 @@ def show_book_detail(row):
                      f"{int(row['rating_count']):,} 人评分")
             st.write(f"**分类**：{row['Category']}")
         st.write(f"**ISBN**：{row['ISBN']}")
-        st.divider()
-        st.caption("课程演示：这里展示这本书的书目信息；正式平台会附简介、目录与试读链接。")
+    st.divider()
+    desc = row.get("description") if "description" in row else ""
+    if isinstance(desc, str) and desc.strip():
+        st.markdown("**内容简介**")
+        st.write(desc)
+    else:
+        st.caption("（本书暂无内容简介）")
 
 
 # ---------- 卡片 ----------
@@ -118,6 +123,10 @@ def render_book_card(row, rank=None):
             st.write(f"⭐ 豆瓣 {row['douban_rating']:.1f} · {int(row['rating_count']):,} 人评分")
         elif "avg_rating" in row and pd.notna(row.get("avg_rating")):
             st.write(f"⭐ 读者平均 {row['avg_rating']:.1f}/10 · {int(row['n_ratings'])} 人评分")
+        desc = row.get("description") if "description" in row else ""
+        if isinstance(desc, str) and desc.strip():
+            short = desc if len(desc) <= 64 else desc[:64] + "…"
+            st.caption(short)
         if st.button("📖 查看详情", key=f"detail_{row['ISBN']}", use_container_width=True):
             log_view(row["ISBN"])
             show_book_detail(row)
