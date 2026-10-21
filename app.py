@@ -70,37 +70,52 @@ with st.sidebar:
     )
     algo_key = "mf" if algo.startswith("矩阵分解") else "itemcf"
 
-    st.header("✍️ 给你看过的书打分")
+    st.header("🔍 找一本书（中英文都可搜）")
+    catalog = load_catalog()
     books = load_books()
 
-    keyword = st.text_input("🔍 搜书名/作者", placeholder="例如：Harry Potter")
+    keyword = st.text_input(
+        "搜书名 / 作者 / 出版社",
+        placeholder="例如：活着 / 余华 / Harry Potter",
+    )
 
-    candidates = books
-    if keyword:
-        kw = keyword.lower()
-        mask = (
-            books["Book-Title"].str.lower().str.contains(kw, na=False)
-            | books["Book-Author"].str.lower().str.contains(kw, na=False)
-        )
-        candidates = books[mask].head(100)
+    def _search(df, kw):
+        kw = kw.strip().lower()
+        if not kw:
+            return df
+        return df[
+            df["Book-Title"].astype(str).str.lower().str.contains(kw, na=False)
+            | df["Book-Author"].astype(str).str.lower().str.contains(kw, na=False)
+            | df["Publisher"].astype(str).str.lower().str.contains(kw, na=False)
+        ]
+
+    candidates = _search(catalog, keyword).head(100)
 
     if len(candidates) == 0:
         st.warning("没有找到匹配的书，换个关键词试试")
-        selected_book = None
     else:
+        lang_flag = lambda r: "🇨🇳" if r.get("is_chinese") else "📘"
         options = {
-            f"{row['Book-Title']} - {row['Book-Author']}": row["ISBN"]
+            f"{lang_flag(row)} {row['Book-Title']} - {row['Book-Author']}": row["ISBN"]
             for _, row in candidates.iterrows()
         }
-        selected_label = st.selectbox("选择一本书", list(options.keys()))
+        selected_label = st.selectbox("选择一本书查看", list(options.keys()))
         selected_isbn = options[selected_label]
-        selected_book = books[books["ISBN"] == selected_isbn].iloc[0]
+        selected_book = catalog[catalog["ISBN"] == selected_isbn].iloc[0]
 
-        rating = st.slider("你给这本书打几分？", 1, 10, 8)
-
-        if st.button("➕ 添加我的评分", use_container_width=True):
-            st.session_state.my_ratings[selected_isbn] = rating
-            st.success(f"已记录：《{selected_book['Book-Title']}》 {rating}分")
+        if selected_book.get("is_chinese", False):
+            st.markdown(cn_cover_html(selected_book), unsafe_allow_html=True)
+            st.write(
+                f"📚 《{selected_book['Book-Title']}》 · {selected_book['Book-Author']}\n\n"
+                f"⭐ 豆瓣 {selected_book['douban_rating']:.1f} · "
+                f"{int(selected_book['rating_count']):,}人评分 · {selected_book['Category']}"
+            )
+            st.caption("中文书可直接浏览；评分推荐暂支持英文书，中文书推荐将在后续优化中接入")
+        else:
+            rating = st.slider("你给这本书打几分？", 1, 10, 8)
+            if st.button("➕ 添加我的评分", use_container_width=True):
+                st.session_state.my_ratings[selected_isbn] = rating
+                st.success(f"已记录：《{selected_book['Book-Title']}》 {rating}分")
 
     st.divider()
     st.subheader(f"📖 我已评过 {len(st.session_state.my_ratings)} 本书")
