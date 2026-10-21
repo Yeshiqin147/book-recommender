@@ -73,6 +73,82 @@ def popular_chinese_books(n: int = 10) -> pd.DataFrame:
     return cn.sort_values("popularity", ascending=False).head(n).reset_index(drop=True)
 
 
+# ============================================================
+# 隐式行为推荐（根据搜索 / 浏览 / 点击 / 停留时长做"粗糙"个性化）
+# 思路：不再让用户"打分"，而是从行为里找兴趣信号——
+#   - 搜索词：命中书名/作者/分类/出版社 → 加兴趣分
+#   - 浏览/点击过的书：其分类、作者相同的书 → 加权加兴趣分
+#   - 停留时长：看得越久，权重越大
+#   - 热度兜底：没有明确兴趣时仍能推热门书
+# 中英文书都能参与（分类/作者/关键词匹配），无需用户显式评分。
+# ============================================================
+
+@st.cache_data
+def load_catalog_with_popularity() -> pd.DataFrame:
+    """合并目录 + 统一的流行度得分（0-1），供行为推荐兜底"""
+    cat = load_catalog()
+    ratings = load_ratings()
+    agg = ratings.groupby("ISBN").agg(
+        n=("Book-Rating", "count"), avg=("Book-Rating", "mean")
+    ).reset_index()
+    n_arr = agg["n"].astype(float).values
+    agg["pop_en"] = agg["avg"].astype(float).values * np.log1p(n_arr)
+    cat = cat.merge(agg[["ISBN", "pop_en"]], on="ISBN", how="left")
+    rc_arr = cat["rating_count"].fillna(0).astype(float).values
+    cat["pop_cn"] = cat["douban_rating"].fillna(0).astype(float).values * np.log1p(rc_arr)
+    cat["pop_raw"] = cat["pop_en"].fillna(cat["pop_cn"]).fillna(0.0)
+    mx = cat["pop_raw"].max()
+    cat["pop"] = (cat["pop_raw"] / mx).fillna(0.0) if mx > 0 else 0.0
+    return cat
+
+
+def recommend_implicit(behavior: dict, search_terms: list, n: int = 10) -> pd.DataFrame:
+    """
+    行为驱动的粗糙个性化推荐。
+    behavior: {ISBN: {"clicks": int, "dwell": float(秒)}}
+    search_terms: 用户搜索过的关键词列表
+    """
+    cat = load_catalog_with_popularity()
+    isbns = cat["ISBN"].tolist()
+    score = np.zeros(len(cat))
+
+    interacted = set()
+    for isbn, info in (behavior or {}).items():
+        idx = cat.index[cat["ISBN"] == isbn]
+        if len(idx) == 0:
+            continue
+        interacted.add(isbn)
+        w = 0.5 + 0.15 * int(info.get("clicks", 1))
+        w *= min(1 + float(info.get("dwell", 0)) / 60.0, 3.0)  # 停留加成
+        r = cat.iloc[idx[0]]
+        cate = r["Category"] if pd.notna(r["Category"]) else ""
+        author = str(r["Book-Author"])
+        if cate:
+            score[cat["Category"] == cate] += w * 2.0
+        if author:
+            score[cat["Book-Author"].astype(str) == author] += w * 1.5
+
+    for t in (search_terms or []):
+        t = str(t).strip().lower()
+        if not t:
+            continue
+        m = (
+            cat["Book-Title"].astype(str).str.lower().str.contains(t, na=False)
+            | cat["Book-Author"].astype(str).str.lower().str.contains(t, na=False)
+            | cat["Category"].astype(str).str.lower().str.contains(t, na=False)
+            | cat["Publisher"].astype(str).str.lower().str.contains(t, na=False)
+        )
+        score[m] += 1.0
+
+    # 热度兜底，避免冷门书完全刷不出来
+    score = score + 0.25 * cat["pop"].values
+
+    mask = ~cat["ISBN"].isin(interacted)
+    res = cat[mask].copy()
+    res["score"] = score[mask]
+    return res.sort_values("score", ascending=False).head(n).reset_index(drop=True)
+
+
 @st.cache_resource
 def build_knn_index():
     """
