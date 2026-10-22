@@ -24,9 +24,23 @@ def cover_url(isbn: str) -> str:
 
 
 @st.cache_data
+def load_en_descriptions() -> pd.DataFrame:
+    """英文书简介（由 fetch_en_descriptions.py 从真实书目接口拉取并缓存）"""
+    p = DATA_DIR / "en_descriptions.csv"
+    if p.exists():
+        return pd.read_csv(p, encoding="utf-8")
+    return pd.DataFrame(columns=["ISBN", "description"])
+
+
+@st.cache_data
 def load_books() -> pd.DataFrame:
     df = pd.read_csv(DATA_DIR / "books.csv")
     df["cover"] = df["ISBN"].apply(cover_url)
+    d = load_en_descriptions()
+    if not d.empty:
+        df = df.merge(d, on="ISBN", how="left")
+    else:
+        df["description"] = pd.NA
     return df
 
 

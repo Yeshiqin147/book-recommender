@@ -14,3 +14,5 @@ venv/
 
 # Streamlit 运行日志
 _streamlit_*.txt
+_srv_*.txt
+_fetch*_log.txt
