@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#3a7d44">
+<meta name="description" content="一个简单的书籍推荐应用，根据你的浏览自动推荐你可能喜欢的书">
+<title>阅荐 · 书籍推荐</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">📚</span>
+    <div class="brand-txt">
+      <h1>阅荐</h1>
+      <p>根据你的浏览，推荐你可能喜欢的书</p>
+    </div>
+  </div>
+</header>
+
+<!-- 搜索 -->
+<section class="search-wrap">
+  <input id="search-input" type="search" placeholder="搜书名 / 作者 / 出版社（中英文都可）" autocomplete="off">
+</section>
+
+<!-- 主内容 -->
+<main id="main"></main>
+
+<!-- 底部：浏览记录 / 清空 -->
+<footer class="foot" id="foot">
+  <div class="foot-head">
+    <span>📚 我的浏览记录</span>
+    <button id="clear-btn" class="ghost">清空</button>
+  </div>
+  <div id="history" class="history"></div>
+</footer>
+
+<!-- 详情弹窗 -->
+<div id="overlay" class="overlay" hidden>
+  <div class="modal" id="modal"></div>
+</div>
+
+<script src="app.js"></script>
+<script>
+if("serviceWorker" in navigator){
+  window.addEventListener("load", ()=>{ navigator.serviceWorker.register("sw.js").catch(()=>{}); });
+}
+</script>
+</body>
+</html>

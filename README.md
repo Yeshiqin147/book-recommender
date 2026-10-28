@@ -1,7 +1,24 @@
 # 📚 书籍个性化推荐小助手
 
-基于 **Book-Crossing** 公开数据集，实现 **物品协同过滤（Item-based CF）** 与 **矩阵分解（SVD）** 两种推荐算法，通过 **Streamlit** 构建的 Web 应用。
-页面可一键切换算法对比效果；一键部署到云端后，任何人打开浏览器链接即可使用。
+一个**手机也能直接打开、观感像 App** 的书籍推荐应用。
+
+- **PWA 网页应用（推荐）**：纯前端单页站点，无需装 Python / 依赖，部署到 GitHub Pages 后手机浏览器打开、可"添加到主屏幕"全屏运行，像独立 App。
+- **行为驱动推荐**：根据你**搜过、浏览过**的书自动推荐（不暴露内部算法）。
+- 中英文书目共 718 本（531 英文 + 187 豆瓣高分中文），含真实内容简介，样式封面本地生成、不依赖外网。
+- 另有基于 Book-Crossing 的 **ItemCF / SVD** 算法实现（Streamlit 版，见下文）。
+
+---
+
+## 零、PWA 手机站点（推荐，手机可直接打开）
+
+站点代码在 `pwa/` 目录，已提交到 **`gh-pages`** 分支。要在手机上打开：
+
+1. 打开 GitHub 仓库 → **Settings** → 左侧 **Pages**
+2. **Source** 选 **Deploy from a branch** → **Branch** 选 `gh-pages`、目录 `/ (root)` → **Save**
+3. 等 1-2 分钟，即可通过 `https://你的用户名.github.io/book-recommender/` 访问
+4. 手机浏览器打开后，菜单里点 **"添加到主屏幕 / Add to Home Screen"**，就像装了 App
+
+> 改了 `pwa/` 里的代码后：重新运行 `python build_pwa_data.py`（重新打包数据），再把 `pwa/` 内容更新提交到 `gh-pages` 分支即可。
 
 ---
 
