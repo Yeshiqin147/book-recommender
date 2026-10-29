@@ -113,6 +113,8 @@ button.ghost:active{background:#f0ebe0}
   position:fixed;inset:0;z-index:40;background:rgba(40,36,30,.5);
   display:flex;align-items:center;justify-content:center;padding:18px;
 }
+/* 关键修复：hidden 属性必须生效，否则空遮罩一直挡在页面上 */
+.overlay[hidden]{display:none;}
 .modal{
   background:var(--card);border-radius:16px;width:100%;max-width:520px;
   max-height:88vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.3);padding:18px;
