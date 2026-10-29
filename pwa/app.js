@@ -28,6 +28,8 @@ function crc32(str){
   return (crc ^ 0xFFFFFFFF) >>> 0;
 }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+// 搜索归一化：忽略间隔号(·・•)与空白，让"哈利波特"能命中"哈利·波特"
+function fold(s){ return String(s==null?"":s).toLowerCase().replace(/[·・•\s]/g,""); }
 
 let BOOKS = [];
 let BY_ISBN = new Map();
@@ -92,9 +94,11 @@ function recommend(behavior, searchLog, n){
   }
   for(const t of (searchLog||[])){
     const s = String(t).trim().toLowerCase(); if(!s) continue;
+    const fs = fold(s);
     for(const b of BOOKS){
-      if(b.title.toLowerCase().includes(s) || b.author.toLowerCase().includes(s)
-        || b.publisher.toLowerCase().includes(s) || (b.category||"").toLowerCase().includes(s))
+      if(fold(b.title).includes(fs) || fold(b.title_zh).includes(fs)
+        || fold(b.author).includes(fs)
+        || fold(b.publisher).includes(fs) || fold(b.category).includes(fs))
         add(b.isbn, 1.0);
     }
   }
@@ -107,10 +111,12 @@ function recommend(behavior, searchLog, n){
 function searchBooks(kw){
   kw = (kw||"").trim().toLowerCase();
   if(!kw) return [];
-  return BOOKS.filter(b=>b.title.toLowerCase().includes(kw)
-    || b.author.toLowerCase().includes(kw)
-    || b.publisher.toLowerCase().includes(kw)
-    || (b.category||"").toLowerCase().includes(kw))
+  const fk = fold(kw);
+  return BOOKS.filter(b=>fold(b.title).includes(fk)
+    || fold(b.title_zh).includes(fk)
+    || fold(b.author).includes(fk)
+    || fold(b.publisher).includes(fk)
+    || fold(b.category).includes(fk))
     .slice(0, 60);
 }
 

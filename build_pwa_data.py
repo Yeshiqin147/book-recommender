@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from pwa_titles_zh import EN_TITLE_ZH, norm_en_title
+
 ROOT = Path(__file__).parent
 DATA = ROOT / "data" / "processed"
 OUT = ROOT / "pwa" / "books.json"
@@ -34,7 +36,9 @@ def main():
         d = desc.loc[desc["ISBN"] == isbn, "description"]
         description = (d.iloc[0] if len(d) and isinstance(d.iloc[0], str) else "") or ""
         records.append({
-            "isbn": isbn, "title": str(r["Book-Title"]), "author": str(r["Book-Author"]),
+            "isbn": isbn, "title": str(r["Book-Title"]),
+            "title_zh": EN_TITLE_ZH.get(norm_en_title(r["Book-Title"]), ""),
+            "author": str(r["Book-Author"]),
             "year": int(r["Year-Of-Publication"]) if pd.notna(r["Year-Of-Publication"]) else 0,
             "publisher": str(r["Publisher"]), "lang": "en", "category": "",
             "rating": round(avg, 2), "rc": int(n), "desc": description.strip(), "pop": pop,
@@ -51,7 +55,8 @@ def main():
         pop = rb * math.log1p(rc) if rc > 0 else 0.0
         description = (r["description"] if isinstance(r["description"], str) else "") or ""
         cn_records.append({
-            "isbn": str(r["ISBN"]), "title": str(r["Book-Title"]), "author": str(r["Book-Author"]),
+            "isbn": str(r["ISBN"]), "title": str(r["Book-Title"]), "title_zh": "",
+            "author": str(r["Book-Author"]),
             "year": int(r["Year-Of-Publication"]) if pd.notna(r["Year-Of-Publication"]) else 0,
             "publisher": str(r["Publisher"]), "lang": "cn", "category": str(r["Category"]),
             "rating": round(rb, 2), "rc": int(rc), "desc": description.strip(), "pop": pop,
