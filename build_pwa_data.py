@@ -83,7 +83,10 @@ def infer_tags(title, title_zh, desc, category):
 
 def main():
     en = pd.read_csv(DATA / "books.csv", dtype={"ISBN": str})
-    cn = pd.read_csv(DATA / "chinese_books.csv", encoding="utf-8", dtype={"ISBN": str})
+    cn1 = pd.read_csv(DATA / "chinese_books.csv", encoding="utf-8", dtype={"ISBN": str})
+    cn2 = pd.read_csv(DATA / "extra_books.csv", encoding="utf-8-sig", dtype={"ISBN": str})
+    cn = pd.concat([cn1, cn2], ignore_index=True)
+    cn = cn.drop_duplicates(subset=["Book-Title"], keep="first").reset_index(drop=True)
     desc = pd.read_csv(DATA / "en_descriptions.csv", encoding="utf-8", dtype={"ISBN": str})
     desc = desc.drop_duplicates(subset=["ISBN"], keep="last")
     ratings = pd.read_csv(DATA / "ratings.csv", dtype={"ISBN": str})
