@@ -1,6 +1,6 @@
 /* 阅荐 · 书籍推荐 —— 前端逻辑
    数据：books.json（本地打包）
-   功能：搜索(中英文子串) / 浏览记录(localStorage) / 行为推荐 / 详情弹窗 / 样式封面
+   功能：搜索(中英文子串) / 分类筛选(内容·风格·篇幅) / 浏览记录(localStorage) / 行为推荐 / 详情弹窗 / 样式封面
    推荐逻辑内置在客户端，页面只呈现"为你推荐"，不暴露内部计算。
 */
 "use strict";
@@ -13,6 +13,7 @@ const CN_COLORS = {
   "文学":"#5B8DB8","科幻":"#3E7CB1","历史":"#9A6B4F","社科":"#6B8E5A",
   "商业":"#C77E4B","心理":"#7D6BA6","散文":"#8FA6A0","古典":"#A0522D",
   "热门":"#C2574E","童书":"#E8A87C","科普":"#4E8D7C","哲学":"#5A5A7A",
+  "奇幻":"#8E6CA8","经济":"#C77E4B","悬疑":"#6D597A",
 };
 const EN_COLORS = [
   "#2E86AB","#B23A48","#3A7D44","#9C6644","#5D576B",
@@ -33,6 +34,8 @@ function fold(s){ return String(s==null?"":s).toLowerCase().replace(/[·・•\s
 
 let BOOKS = [];
 let BY_ISBN = new Map();
+// 当前筛选状态
+const state = {cat:"全部", style:"全部", length:"全部"};
 
 async function loadData(){
   const r = await fetch("books.json", {cache:"no-store"});
@@ -43,13 +46,12 @@ async function loadData(){
 }
 
 // ---------- 封面（本地生成，不依赖外网） ----------
-function coverHtml(b, w, h){
+function coverHtml(b){
   const color = b.lang==="cn"
     ? (CN_COLORS[b.category] || "#5A5A7A")
     : EN_COLORS[crc32(b.isbn) % EN_COLORS.length];
   const chip = b.lang==="cn" ? "🇨🇳 "+b.category : "EN";
-  const fs = w>=110 ? 13 : 11;
-  return `<div class="cover" style="width:${w}px;height:${h}px;background:linear-gradient(150deg,${color},${color}cc)">
+  return `<div class="cover" style="background:linear-gradient(150deg,${color},${color}cc)">
     <div class="chip">${esc(chip)}</div>
     <div class="ctitle">《${esc(b.title)}》</div>
     <div class="cauthor">${esc(b.author)}</div>
@@ -116,8 +118,37 @@ function searchBooks(kw){
     || fold(b.title_zh).includes(fk)
     || fold(b.author).includes(fk)
     || fold(b.publisher).includes(fk)
-    || fold(b.category).includes(fk))
-    .slice(0, 60);
+    || fold(b.category).includes(fk));
+}
+
+// ---------- 分类筛选 ----------
+function uniqOptions(key){
+  const m = new Map();
+  for(const b of BOOKS){ const v=b[key]||"其他"; m.set(v,(m.get(v)||0)+1); }
+  return [...m.entries()].sort((a,b)=>b[1]-a[1]);
+}
+function applyFilter(list){
+  return list.filter(b=>
+    (state.cat==="全部" || (b.category||"其他")===state.cat) &&
+    (state.style==="全部" || (b.style||"小说")===state.style) &&
+    (state.length==="全部" || (b.length||"长篇")===state.length)
+  );
+}
+function chipRow(label, key, cur){
+  const opts = uniqOptions(key);
+  let h = `<div class="filter-row"><span class="filter-label">${label}</span>`;
+  h += `<span class="fchip ${cur==="全部"?"on":""}" data-dim="${key}" data-v="全部">全部</span>`;
+  for(const [v] of opts){
+    h += `<span class="fchip ${cur===v?"on":""}" data-dim="${key}" data-v="${esc(v)}">${esc(v)}</span>`;
+  }
+  return h + `</div>`;
+}
+function filterBarHtml(){
+  return `<div class="filter-bar">
+    ${chipRow("内容","category",state.cat)}
+    ${chipRow("风格","style",state.style)}
+    ${chipRow("篇幅","length",state.length)}
+  </div>`;
 }
 
 // ---------- 渲染 ----------
@@ -125,27 +156,19 @@ const main = document.getElementById("main");
 const searchInput = document.getElementById("search-input");
 const historyEl = document.getElementById("history");
 
-function stars(rating){
-  if(!rating || rating<=0) return "";
-  return "⭐ "+rating.toFixed(1);
+function stars(b){
+  if(!b.rating || b.rating<=0) return "";
+  return `⭐ ${b.rating.toFixed(1)}`;
 }
-function langChip(b){
-  return b.lang==="cn" ? '<span class="chip-lang chip-cn">中文</span>' : '<span class="chip-lang chip-en">英文</span>';
-}
-function cardHtml(b, rank){
-  const s = stars(b.rating);
-  const rc = b.rc>0 ? ` · ${b.rc.toLocaleString()} 人评分` : "";
-  const desc = b.desc ? `<div class="desc">${esc(b.desc.slice(0,80))}${b.desc.length>80?"…":""}</div>` : "";
-  const rk = rank!=null ? `<span style="color:${EN_COLORS[rank-1]||"#888"}">#${rank}</span> ` : "";
-  return `<div class="book-card" data-isbn="${esc(b.isbn)}">
-    ${coverHtml(b,76,112)}
-    <div class="book-info">
-      <h3>${rk}${langChip(b)}《${esc(b.title)}》</h3>
-      <div class="meta">${esc(b.author)} · ${b.year}</div>
-      <div class="meta">${esc(b.publisher)}</div>
-      <div class="stars">${s}${rc}</div>
-      ${desc}
-    </div>
+// 网格小卡片：封面为主
+function itemHtml(b, rank){
+  const rk = rank!=null ? `<span style="position:absolute;top:4px;left:6px;font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5);z-index:2">#${rank}</span>` : "";
+  const st = stars(b);
+  const rc = b.rc>0 ? ` · ${b.rc>=10000?(b.rc/10000).toFixed(1)+"万":b.rc}` : "";
+  return `<div class="book-item" data-isbn="${esc(b.isbn)}">
+    <div style="position:relative">${rk}${coverHtml(b)}</div>
+    <div class="bi-title">${esc(b.title_zh||b.title)}</div>
+    <div class="bi-meta">${st?`<span class="stars">${st}</span>`:""}<span>${rc}</span></div>
   </div>`;
 }
 function section(title, sub){
@@ -166,29 +189,38 @@ function renderHistory(){
     : `<span style="color:var(--sub);font-size:12px">点开一本书会自动加入浏览记录</span>`;
 }
 
+function renderGrid(list, startRank){
+  if(!list.length) return empty("这一类暂时没有书，换个筛选看看");
+  return `<div class="book-grid">${list.map((b,i)=>itemHtml(b, startRank!=null?startRank+i:null)).join("")}</div>`;
+}
+
 function renderAll(){
   const beh = getBehavior();
   const slog = getSearchLog();
   const hasBehavior = Object.keys(beh).length>0 || slog.length>0;
   const kw = searchInput.value.trim();
 
-  let html = "";
+  let html = filterBarHtml();
   if(kw){
     logSearch(kw);
-    const hits = searchBooks(kw);
-    html += section("搜索结果", `${hits.length} 条`);
-    html += hits.length ? hits.map(cardHtml).join("") : empty("没有找到匹配的书，换个关键词试试");
+    const hits = applyFilter(searchBooks(kw));
+    html += section("搜索结果", `${hits.length} 本`);
+    html += hits.length ? renderGrid(hits) : empty("没有找到匹配的书，换个关键词试试");
   } else if(hasBehavior){
-    const recs = recommend(beh, slog, 8);
+    const recs = applyFilter(recommend(beh, slog, 40));
     html += section("🎯 为你推荐", "根据你搜过、看过的书挑选");
-    html += recs.length ? recs.map((b,i)=>cardHtml(b,i+1)).join("") : empty("再点开几本书，推荐会更准");
+    html += recs.length ? renderGrid(recs) : empty("再点开几本书，或换个筛选条件");
   } else {
-    const hot = [...BOOKS].sort((a,b)=>b.pop-a.pop).slice(0,6);
-    html += section("🔥 大家都在读", "热门书精选");
-    html += hot.map((b,i)=>cardHtml(b,i+1)).join("");
-    const cn = BOOKS.filter(b=>b.lang==="cn").sort((a,b)=>b.rating-a.rating).slice(0,8);
-    html += section("🇨🇳 中文书目精选", "真实豆瓣高分书，点开看详情");
-    html += cn.map((b,i)=>cardHtml(b,i+1)).join("");
+    const hot = applyFilter([...BOOKS].sort((a,b)=>b.pop-a.pop).slice(0,18));
+    if(hot.length){
+      html += section("🔥 大家都在读", "热门书精选");
+      html += renderGrid(hot);
+    }
+    const cn = applyFilter(BOOKS.filter(b=>b.lang==="cn").sort((a,b)=>b.rating-a.rating).slice(0,18));
+    if(cn.length){
+      html += section("🇨🇳 中文高分精选", "真实豆瓣高分书，点开看详情");
+      html += renderGrid(cn);
+    }
   }
   main.innerHTML = html;
   renderHistory();
@@ -200,23 +232,23 @@ const modal = document.getElementById("modal");
 function openDetail(isbn){
   const b = BY_ISBN.get(isbn); if(!b) return;
   logView(isbn);
-  const s = stars(b.rating);
+  const s = stars(b);
   const rc = b.rc>0 ? ` · ${b.rc.toLocaleString()} 人评分` : "";
-  const cate = b.category ? `<div class="meta">分类：${esc(b.category)}</div>` : "";
+  const tags = [b.category, b.style, b.length].filter(Boolean).map(t=>`<span class="t">${esc(t)}</span>`).join("");
   const lang = b.lang==="cn" ? "中文" : "英文";
   const descBlock = b.desc
     ? `<div class="desc-block"><h4>内容简介</h4><div class="desc-body">${esc(b.desc)}</div></div>`
     : `<div class="desc-block"><h4>内容简介</h4><div class="desc-body" style="color:var(--sub)">（本书暂无简介）</div></div>`;
   modal.innerHTML = `
     <div class="modal-head">
-      ${coverHtml(b,96,142)}
+      ${coverHtml(b)}
       <div style="flex:1;min-width:0">
-        <h2>《${esc(b.title)}》</h2>
+        <h2>《${esc(b.title_zh||b.title)}》${b.title_zh&&b.title!==b.title_zh?`<div class="meta" style="margin-top:2px">原名：${esc(b.title)}</div>`:""}</h2>
         <div class="meta">作者：${esc(b.author)}</div>
         <div class="meta">出版社：${esc(b.publisher)}（${b.year}）</div>
         <div class="meta">语言：${lang} · ISBN：${esc(b.isbn)}</div>
-        ${cate}
-        <div class="stars">${s}${rc}</div>
+        <div class="tags">${tags}</div>
+        <div class="stars" style="color:#c77e2e;margin-top:6px">${s}${rc}</div>
       </div>
     </div>
     ${descBlock}
@@ -232,8 +264,15 @@ searchInput.addEventListener("input", ()=>{
 });
 
 main.addEventListener("click", (e)=>{
-  const card = e.target.closest(".book-card");
-  if(card) openDetail(card.dataset.isbn);
+  // 分类标签
+  const chip = e.target.closest(".fchip");
+  if(chip){
+    state[chip.dataset.dim] = chip.dataset.v;
+    renderAll();
+    return;
+  }
+  const item = e.target.closest(".book-item");
+  if(item) openDetail(item.dataset.isbn);
 });
 historyEl.addEventListener("click", (e)=>{
   const tag = e.target.closest(".tag");
