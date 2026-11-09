@@ -209,15 +209,20 @@ function renderAll(){
     html += section("🎯 为你推荐", "根据你搜过、看过的书挑选");
     html += recs.length ? renderGrid(recs) : empty("再点开几本书，或换个筛选条件");
   } else {
-    const hot = applyFilter([...BOOKS].sort((a,b)=>b.pop-a.pop).slice(0,18));
+    const hot = applyFilter([...BOOKS].sort((a,b)=>b.pop-a.pop).slice(0,30));
     if(hot.length){
       html += section("🔥 大家都在读", "热门书精选");
       html += renderGrid(hot);
     }
-    const cn = applyFilter(BOOKS.filter(b=>b.lang==="cn").sort((a,b)=>b.rating-a.rating).slice(0,18));
+    const cn = applyFilter(BOOKS.filter(b=>b.lang==="cn").sort((a,b)=>b.rating-a.rating).slice(0,24));
     if(cn.length){
       html += section("🇨🇳 中文高分精选", "真实豆瓣高分书，点开看详情");
       html += renderGrid(cn);
+    }
+    const en = applyFilter(BOOKS.filter(b=>b.lang==="en" && b.rating>0).sort((a,b)=>b.rating-a.rating).slice(0,24));
+    if(en.length){
+      html += section("🌍 英文经典高分", "经典外文原版书");
+      html += renderGrid(en);
     }
   }
   main.innerHTML = html;
