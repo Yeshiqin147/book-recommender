@@ -145,7 +145,7 @@ function chipRow(label, key, cur){
 }
 function filterBarHtml(){
   return `<div class="filter-bar">
-    ${chipRow("内容","category",state.cat)}
+    ${chipRow("内容","cat",state.cat)}
     ${chipRow("风格","style",state.style)}
     ${chipRow("篇幅","length",state.length)}
   </div>`;
