@@ -8,7 +8,7 @@
 <title>阅荐 · 书籍推荐</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 
@@ -44,7 +44,7 @@
   <div class="modal" id="modal"></div>
 </div>
 
-<script src="app.js"></script>
+<script src="app.js?v=2"></script>
 <script>
 if("serviceWorker" in navigator){
   window.addEventListener("load", ()=>{ navigator.serviceWorker.register("sw.js").catch(()=>{}); });

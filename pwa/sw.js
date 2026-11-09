@@ -1,10 +1,10 @@
-/* 阅荐 PWA Service Worker：离线缓存核心资源 */
-const CACHE = "yujian-v1";
+/* 阅荐 PWA Service Worker：离线缓存，网络优先保证更新 */
+const CACHE = "yujian-v2";
 const ASSETS = [
   "./",
   "./index.html",
-  "./style.css",
-  "./app.js",
+  "./style.css?v=2",
+  "./app.js?v=2",
   "./books.json",
   "./manifest.json",
   "./icons/icon-192.png",
@@ -26,11 +26,12 @@ self.addEventListener("fetch", (e)=>{
   if(req.method!=="GET") return;
   const url = new URL(req.url);
   if(url.origin!==location.origin) return;
+  // 网络优先：先尝试拿最新版，失败才用缓存
   e.respondWith(
-    caches.match(req).then(hit=> hit || fetch(req).then(res=>{
+    fetch(req).then(res=>{
       const copy = res.clone();
       caches.open(CACHE).then(c=>c.put(req, copy));
       return res;
-    }).catch(()=> caches.match("./index.html")))
+    }).catch(()=> caches.match(req).then(hit=> hit || caches.match("./index.html")))
   );
 });
