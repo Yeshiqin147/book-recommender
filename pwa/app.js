@@ -50,10 +50,8 @@ function coverHtml(b){
   const color = b.lang==="cn"
     ? (CN_COLORS[b.category] || "#5A5A7A")
     : EN_COLORS[crc32(b.isbn) % EN_COLORS.length];
-  const chip = b.lang==="cn" ? "🇨🇳 "+b.category : "EN";
-  return `<div class="cover" style="background:linear-gradient(150deg,${color},${color}cc)">
-    <div class="chip">${esc(chip)}</div>
-    <div class="ctitle">《${esc(b.title)}》</div>
+  return `<div class="cover" style="background:linear-gradient(160deg,${color} 0%,${color}dd 100%)">
+    <div class="ctitle">《${esc(b.title_zh||b.title)}》</div>
     <div class="cauthor">${esc(b.author)}</div>
   </div>`;
 }
