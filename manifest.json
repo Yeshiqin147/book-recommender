@@ -1,0 +1,15 @@
+{
+  "name": "阅荐 · 书籍推荐",
+  "short_name": "阅荐",
+  "description": "一个简单的书籍推荐应用，根据你的浏览自动推荐你可能喜欢的书。",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#faf6ef",
+  "theme_color": "#3a7d44",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
