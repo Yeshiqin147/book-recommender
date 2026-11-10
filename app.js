@@ -12,6 +12,7 @@ function crc32(str){ let c=0xFFFFFFFF; for(let i=0;i<str.length;i++){ c^=str.cha
 
 let BOOKS = [];
 let BY_ISBN = new Map();
+let activeSubcat = ""; // 当前选中的子分类筛选
 
 // ---------- 封面配色（言情粉系） ----------
 const ROMANCE_COLORS = [
@@ -254,12 +255,29 @@ function renderAll(){
   const kw = searchInput.value.trim();
 
   let html = "";
+  // 子分类筛选栏
+  const subcats = [...new Set(BOOKS.map(b=>b.subcat).filter(Boolean))].sort();
+  html += `<div class="subcat-bar">`;
+  html += `<span class="subcat-chip ${activeSubcat===""?"on":""}" data-sub="">全部</span>`;
+  for(const sc of subcats){
+    html += `<span class="subcat-chip ${activeSubcat===sc?"on":""}" data-sub="${esc(sc)}">${subcatIcon(sc)} ${subcatName(sc)}</span>`;
+  }
+  html += `</div>`;
+
   if(kw){
-    const hits = searchBooks(kw);
+    let hits = searchBooks(kw);
+    if(activeSubcat) hits = hits.filter(b=>b.subcat===activeSubcat);
     html += `<div class="row-title">🔍 搜索结果 · ${hits.length} 本</div>`;
     html += hits.length
       ? `<div class="row-scroll single">${hits.map((b,i)=>cardHtml(b,i+1)).join("")}</div>`
       : `<div class="empty">没有找到「${esc(kw)}」，换个关键词试试</div>`;
+  } else if(activeSubcat){
+    // 选中了子分类，显示该分类下所有书
+    const list = BOOKS.filter(b=>b.subcat===activeSubcat).sort((a,b)=>b.pop-a.pop);
+    html += `<div class="row-title">${subcatIcon(activeSubcat)} ${subcatName(activeSubcat)} · ${list.length} 本</div>`;
+    html += list.length
+      ? `<div class="row-scroll single">${list.map((b,i)=>cardHtml(b,i+1)).join("")}</div>`
+      : `<div class="empty">这个分类暂时没有书</div>`;
   } else {
     const rows = buildRows(pref);
     for(const r of rows){
@@ -306,6 +324,13 @@ searchInput.addEventListener("input", ()=>{
 });
 
 main.addEventListener("click", (e)=>{
+  // 子分类筛选
+  const chip = e.target.closest(".subcat-chip");
+  if(chip){
+    activeSubcat = chip.dataset.sub || "";
+    renderAll();
+    return;
+  }
   const card = e.target.closest(".card");
   if(card) openDetail(card.dataset.isbn);
 });
