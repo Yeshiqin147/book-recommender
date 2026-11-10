@@ -1,257 +1,314 @@
-/* 阅荐 · 书籍推荐 —— 前端逻辑
-   数据：books.json（本地打包）
-   功能：搜索(中英文子串) / 分类筛选(内容·风格·篇幅) / 浏览记录(localStorage) / 行为推荐 / 详情弹窗 / 样式封面
-   推荐逻辑内置在客户端，页面只呈现"为你推荐"，不暴露内部计算。
+/* 阅荐言情 · 前端
+   首屏问卷 + Netflix式横向卡片流 + 言情细分标签
 */
 "use strict";
 
-const STORE = "yj_behavior";
-const SLOG = "yj_search_log";
+const STORE = "yj_pref";
+const BEHAVIOR = "yj_behavior_v2";
 
-// ---------- 封面配色 ----------
-const CN_COLORS = {
-  "文学":"#5B8DB8","科幻":"#3E7CB1","历史":"#9A6B4F","社科":"#6B8E5A",
-  "商业":"#C77E4B","心理":"#7D6BA6","散文":"#8FA6A0","古典":"#A0522D",
-  "热门":"#C2574E","童书":"#E8A87C","科普":"#4E8D7C","哲学":"#5A5A7A",
-  "奇幻":"#8E6CA8","经济":"#C77E4B","悬疑":"#6D597A",
-};
-const EN_COLORS = [
-  "#2E86AB","#B23A48","#3A7D44","#9C6644","#5D576B",
-  "#2C7DA0","#8A5A44","#6D597A","#4E8098","#B08D57",
-];
-// 简单 crc32
-function crc32(str){
-  let crc = 0xFFFFFFFF;
-  for(let i=0;i<str.length;i++){
-    crc ^= str.charCodeAt(i);
-    for(let k=0;k<8;k++) crc = (crc>>>1) ^ (0xEDB88320 & -(crc & 1));
-  }
-  return (crc ^ 0xFFFFFFFF) >>> 0;
-}
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
-// 搜索归一化：忽略间隔号(·・•)与空白，让"哈利波特"能命中"哈利·波特"
 function fold(s){ return String(s==null?"":s).toLowerCase().replace(/[·・•\s]/g,""); }
+function crc32(str){ let c=0xFFFFFFFF; for(let i=0;i<str.length;i++){ c^=str.charCodeAt(i); for(let k=0;k<8;k++) c=(c>>>1)^(0xEDB88320&-(c&1)); } return (c^0xFFFFFFFF)>>>0; }
 
 let BOOKS = [];
 let BY_ISBN = new Map();
-// 当前筛选状态
-const state = {cat:"全部", style:"全部", length:"全部"};
+let activeSubcat = ""; // 当前选中的子分类筛选
 
-async function loadData(){
-  const r = await fetch("books.json", {cache:"no-store"});
-  const data = await r.json();
-  BOOKS = data.books;
-  for(const b of BOOKS) BY_ISBN.set(b.isbn, b);
-  renderAll();
-}
+// ---------- 封面配色（言情粉系） ----------
+const ROMANCE_COLORS = [
+  "#e91e63","#ad1457","#c2185b","#d81b60","#ec407a",
+  "#f06292","#f48fb1","#880e4f","#a0206b","#b83a6e",
+];
+const SUBCAT_COLORS = {
+  "古言":"#ad1457","现言":"#e91e63","仙侠":"#7b1fa2","穿越":"#00897b",
+  "甜宠":"#f06292","虐文":"#5d4037","霸总":"#263238","校园":"#42a5f5",
+  "职场":"#6d4c41","宫斗":"#880e4f","宅斗":"#6a1b9a","耽美":"#00838f",
+  "百合":"#00acc1","西方":"#5c6bc0","悬疑":"#455a64","奇幻":"#6d597a",
+};
 
-// ---------- 封面（本地生成，不依赖外网） ----------
 function coverHtml(b){
-  const color = b.lang==="cn"
-    ? (CN_COLORS[b.category] || "#5A5A7A")
-    : EN_COLORS[crc32(b.isbn) % EN_COLORS.length];
+  const color = SUBCAT_COLORS[b.subcat] || ROMANCE_COLORS[crc32(b.isbn) % ROMANCE_COLORS.length];
   return `<div class="cover" style="background:linear-gradient(160deg,${color} 0%,${color}dd 100%)">
     <div class="ctitle">《${esc(b.title_zh||b.title)}》</div>
     <div class="cauthor">${esc(b.author)}</div>
   </div>`;
 }
 
-// ---------- 存储 ----------
-function getBehavior(){ try{return JSON.parse(localStorage.getItem(STORE)||"{}")}catch(e){return{}} }
-function setBehavior(v){ localStorage.setItem(STORE, JSON.stringify(v)) }
-function getSearchLog(){ try{return JSON.parse(localStorage.getItem(SLOG)||"[]")}catch(e){return[]} }
-function setSearchLog(v){ localStorage.setItem(SLOG, JSON.stringify(v)) }
+// ---------- 偏好 ----------
+function getPref(){ try{return JSON.parse(localStorage.getItem(STORE)||"null")}catch(e){return null} }
+function setPref(v){ localStorage.setItem(STORE, JSON.stringify(v)) }
+function getBehavior(){ try{return JSON.parse(localStorage.getItem(BEHAVIOR)||"{}")}catch(e){return{}} }
+function setBehavior(v){ localStorage.setItem(BEHAVIOR, JSON.stringify(v)) }
 
 function logView(isbn){
   const beh = getBehavior();
-  const now = Date.now()/1000;
-  if(beh[isbn]){ beh[isbn].clicks++; beh[isbn].dwell = Math.min((beh[isbn].dwell||0) + Math.min(Math.max(now-(beh[isbn].ts||now),0),300), 900); }
-  else beh[isbn] = {clicks:1, dwell:0};
-  beh[isbn].ts = now;
+  if(beh[isbn]) beh[isbn]++; else beh[isbn] = 1;
   setBehavior(beh);
 }
-function logSearch(term){
-  term = (term||"").trim();
-  if(!term) return;
-  const log = getSearchLog();
-  if(!log.length || log[log.length-1].toLowerCase()!==term.toLowerCase()){
-    log.push(term);
-    setSearchLog(log.slice(-10));
+
+// ---------- 首屏问卷 ----------
+const OB_STEPS = [
+  {
+    title: "你喜欢哪种类型的爱情故事？",
+    sub: "可多选，选你感兴趣的",
+    multi: true,
+    key: "types",
+    options: [
+      {v:"古言", icon:"🏯", label:"古代言情", desc:"宫廷、宅斗、江湖"},
+      {v:"现言", icon:"🏙️", label:"现代言情", desc:"都市、职场、校园"},
+      {v:"仙侠", icon:"🐉", label:"仙侠奇缘", desc:"修真、玄幻、前世今生"},
+      {v:"穿越", icon:"⏰", label:"穿越重生", desc:"穿书、重生、时空交错"},
+      {v:"耽美", icon:"💫", label:"耽美纯爱", desc:"男男情感"},
+      {v:"百合", icon:"🌸", label:"百合", desc:"女女情感"},
+    ]
+  },
+  {
+    title: "你偏爱的甜度是？",
+    sub: "单选，影响推荐口味",
+    multi: false,
+    key: "vibe",
+    options: [
+      {v:"甜宠", icon:"🍬", label:"甜宠", desc:"全程高甜，撒狗粮"},
+      {v:"虐恋", icon:"💔", label:"虐恋", desc:"先虐后甜，意难平"},
+      {v:"强强", icon:"⚔️", label:"强强对决", desc:"势均力敌，斗智斗勇"},
+      {v:"都行", icon:"🎲", label:"都可以", desc:"不挑，好看就行"},
+    ]
+  },
+  {
+    title: "你看文的习惯是？",
+    sub: "单选",
+    multi: false,
+    key: "length",
+    options: [
+      {v:"短篇", icon:"📖", label:"短篇", desc:"一口气看完"},
+      {v:"长篇", icon:"📚", label:"长篇", desc:"追更，沉浸式"},
+      {v:"中篇", icon:"📑", label:"中篇", desc:"周末读完"},
+      {v:"都行", icon:"🎲", label:"都可以", desc:"看心情"},
+    ]
+  },
+];
+
+let obStep = 0;
+let obAnswers = {};
+
+function showOnboarding(){
+  obStep = 0;
+  obAnswers = {};
+  document.getElementById("onboarding").hidden = false;
+  renderObStep();
+}
+
+function renderObStep(){
+  const step = OB_STEPS[obStep];
+  document.getElementById("ob-title").textContent = step.title;
+  document.getElementById("ob-sub").textContent = step.sub;
+  document.getElementById("ob-back").hidden = obStep===0;
+
+  let h = `<div class="ob-opts">`;
+  for(const opt of step.options){
+    const sel = obAnswers[step.key] && (step.multi ? obAnswers[step.key].includes(opt.v) : obAnswers[step.key]===opt.v);
+    h += `<div class="ob-opt ${sel?"on":""}" data-v="${opt.v}">
+      <span class="ob-icon">${opt.icon}</span>
+      <div><div class="ob-label">${opt.label}</div><div class="ob-desc">${opt.desc}</div></div>
+    </div>`;
+  }
+  h += `</div>`;
+  document.getElementById("ob-body").innerHTML = h;
+
+  document.getElementById("ob-next").textContent = obStep===OB_STEPS.length-1 ? "开始发现" : "下一步";
+}
+
+function finishOnboarding(){
+  setPref(obAnswers);
+  document.getElementById("onboarding").hidden = true;
+  document.getElementById("retry-btn").hidden = false;
+  updateGreeting();
+  renderAll();
+}
+
+// ---------- 数据加载 ----------
+async function loadData(){
+  const r = await fetch("books.json", {cache:"no-store"});
+  const data = await r.json();
+  BOOKS = data.books;
+  for(const b of BOOKS) BY_ISBN.set(b.isbn, b);
+
+  const pref = getPref();
+  if(!pref){
+    showOnboarding();
+  } else {
+    document.getElementById("retry-btn").hidden = false;
+    updateGreeting();
+    renderAll();
   }
 }
 
-// ---------- 行为推荐（内置逻辑，复刻服务端口径） ----------
-function recommend(behavior, searchLog, n){
-  behavior = behavior||{};
-  const interacted = new Set(Object.keys(behavior));
-  const score = new Map();
-  const add = (isbn,v)=>score.set(isbn,(score.get(isbn)||0)+v);
-  for(const [isbn, info] of Object.entries(behavior)){
-    const book = BY_ISBN.get(isbn); if(!book) continue;
-    const w = (0.5 + 0.15*(info.clicks||1)) * Math.min(1 + (info.dwell||0)/60, 3);
-    if(book.category) for(const b of BOOKS) if(b.category===book.category) add(b.isbn, w*2.0);
-    if(book.author)   for(const b of BOOKS) if(b.author===book.author) add(b.isbn, w*1.5);
-  }
-  for(const t of (searchLog||[])){
-    const s = String(t).trim().toLowerCase(); if(!s) continue;
-    const fs = fold(s);
-    for(const b of BOOKS){
-      if(fold(b.title).includes(fs) || fold(b.title_zh).includes(fs)
-        || fold(b.author).includes(fs)
-        || fold(b.publisher).includes(fs) || fold(b.category).includes(fs))
-        add(b.isbn, 1.0);
-    }
-  }
-  for(const b of BOOKS) add(b.isbn, 0.25*b.pop);
-  return BOOKS.filter(b=>!interacted.has(b.isbn))
-    .sort((a,b)=>(score.get(b.isbn)||0)-(score.get(a.isbn)||0))
-    .slice(0, n);
+function updateGreeting(){
+  const pref = getPref();
+  if(!pref) return;
+  const types = pref.types || [];
+  const vibe = pref.vibe || "都行";
+  document.getElementById("greeting").textContent =
+    types.length ? `为你精选 ${types.join(" / ")} · ${vibe} 好文` : "发现你的下一本心动小说";
 }
 
+// ---------- 推荐逻辑 ----------
+function scoreBook(b, pref){
+  let s = b.pop * 10;
+  const types = (pref && pref.types) || [];
+  if(types.includes(b.subcat)) s += 50;
+  if(types.length===0 || types.includes("都行")) s += 10;
+  const vibe = (pref && pref.vibe) || "";
+  if(vibe==="甜宠" && b.subcat==="甜宠") s += 30;
+  if(vibe==="虐恋" && b.subcat==="虐文") s += 30;
+  if(vibe==="强强" && (b.subcat==="强强"||b.subcat==="职场")) s += 20;
+  const len = (pref && pref.length) || "";
+  if(len && len!=="都行" && b.length===len) s += 15;
+  // 行为加分
+  const beh = getBehavior();
+  if(beh[b.isbn]) s += beh[b.isbn] * 20;
+  return s;
+}
+
+function recommendBooks(pref, n){
+  return [...BOOKS].map(b=>({b, s:scoreBook(b, pref)}))
+    .sort((a,b)=>b.s-a.s)
+    .slice(0, n)
+    .map(x=>x.b);
+}
+
+// ---------- 版块分组 ----------
+function buildRows(pref){
+  const rows = [];
+  // 1. 为你推荐
+  const recs = recommendBooks(pref, 20);
+  if(recs.length) rows.push({title:"💘 为你推荐", books:recs});
+
+  // 2. 按用户偏好类型分组
+  const types = (pref && pref.types) || [];
+  for(const t of types){
+    const list = BOOKS.filter(b=>b.subcat===t).sort((a,b)=>b.pop-a.pop).slice(0,15);
+    if(list.length) rows.push({title:`${subcatIcon(t)} ${subcatName(t)}`, books:list});
+  }
+
+  // 3. 热门总榜
+  const hot = [...BOOKS].sort((a,b)=>b.pop-a.pop).slice(0,15);
+  rows.push({title:"🔥 热门总榜", books:hot});
+
+  // 4. 高分精选
+  const rated = BOOKS.filter(b=>b.rating>0).sort((a,b)=>b.rating-a.rating).slice(0,15);
+  rows.push({title:"⭐ 高分精选", books:rated});
+
+  return rows;
+}
+
+function subcatIcon(t){
+  return {"古言":"🏯","现言":"🏙️","仙侠":"🐉","穿越":"⏰","甜宠":"🍬","虐文":"💔",
+    "霸总":"💼","校园":"🎓","职场":"💼","宫斗":"👑","宅斗":"🏠","耽美":"💫",
+    "百合":"🌸","西方":"🌍","悬疑":"🔍","奇幻":"✨"}[t] || "📖";
+}
+function subcatName(t){
+  return {"古言":"古代言情","现言":"现代言情","仙侠":"仙侠奇缘","穿越":"穿越重生",
+    "甜宠":"甜宠合集","虐文":"虐恋专区","霸总":"霸总总裁","校园":"校园青春",
+    "职场":"职场恋情","宫斗":"宫斗权谋","宅斗":"宅斗世家","耽美":"耽美纯爱",
+    "百合":"百合之恋","西方":"西方浪漫","悬疑":"悬疑爱情","奇幻":"奇幻情缘"}[t] || t;
+}
+
+// ---------- 搜索 ----------
 function searchBooks(kw){
   kw = (kw||"").trim().toLowerCase();
   if(!kw) return [];
   const fk = fold(kw);
-  return BOOKS.filter(b=>fold(b.title).includes(fk)
-    || fold(b.title_zh).includes(fk)
-    || fold(b.author).includes(fk)
-    || fold(b.publisher).includes(fk)
-    || fold(b.category).includes(fk));
-}
-
-// ---------- 分类筛选 ----------
-function uniqOptions(key){
-  const m = new Map();
-  for(const b of BOOKS){ const v=b[key]||"其他"; m.set(v,(m.get(v)||0)+1); }
-  return [...m.entries()].sort((a,b)=>b[1]-a[1]);
-}
-function applyFilter(list){
-  return list.filter(b=>
-    (state.cat==="全部" || (b.category||"其他")===state.cat) &&
-    (state.style==="全部" || (b.style||"小说")===state.style) &&
-    (state.length==="全部" || (b.length||"长篇")===state.length)
-  );
-}
-function chipRow(label, key, cur){
-  const opts = uniqOptions(key);
-  let h = `<div class="filter-row"><span class="filter-label">${label}</span>`;
-  h += `<span class="fchip ${cur==="全部"?"on":""}" data-dim="${key}" data-v="全部">全部</span>`;
-  for(const [v] of opts){
-    h += `<span class="fchip ${cur===v?"on":""}" data-dim="${key}" data-v="${esc(v)}">${esc(v)}</span>`;
-  }
-  return h + `</div>`;
-}
-function filterBarHtml(){
-  return `<div class="filter-bar">
-    ${chipRow("内容","cat",state.cat)}
-    ${chipRow("风格","style",state.style)}
-    ${chipRow("篇幅","length",state.length)}
-  </div>`;
+  return BOOKS.filter(b=>fold(b.title).includes(fk) || fold(b.title_zh).includes(fk)
+    || fold(b.author).includes(fk));
 }
 
 // ---------- 渲染 ----------
 const main = document.getElementById("main");
 const searchInput = document.getElementById("search-input");
-const historyEl = document.getElementById("history");
 
 function stars(b){
   if(!b.rating || b.rating<=0) return "";
   return `⭐ ${b.rating.toFixed(1)}`;
 }
-// 网格小卡片：封面为主
-function itemHtml(b, rank){
-  const rk = rank!=null ? `<span style="position:absolute;top:4px;left:6px;font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5);z-index:2">#${rank}</span>` : "";
+
+function cardHtml(b, rank){
+  const rk = rank!=null ? `<span class="rank-badge">#${rank}</span>` : "";
   const st = stars(b);
-  const rc = b.rc>0 ? ` · ${b.rc>=10000?(b.rc/10000).toFixed(1)+"万":b.rc}` : "";
-  return `<div class="book-item" data-isbn="${esc(b.isbn)}">
-    <div style="position:relative">${rk}${coverHtml(b)}</div>
-    <div class="bi-title">${esc(b.title_zh||b.title)}</div>
-    <div class="bi-meta">${st?`<span class="stars">${st}</span>`:""}<span>${rc}</span></div>
+  return `<div class="card" data-isbn="${esc(b.isbn)}">
+    <div class="card-cover-wrap">${rk}${coverHtml(b)}</div>
+    <div class="card-title">${esc(b.title_zh||b.title)}</div>
+    <div class="card-author">${esc(b.author)}</div>
+    ${st?`<div class="card-stars">${st}</div>`:""}
   </div>`;
 }
-function section(title, sub){
-  return `<div class="section-title">${title}${sub?`<span class="sub">${sub}</span>`:""}</div>`;
-}
-function empty(text){
-  return `<div class="empty">${text}</div>`;
-}
 
-function renderHistory(){
-  const beh = getBehavior();
-  const keys = Object.keys(beh);
-  historyEl.innerHTML = keys.length
-    ? keys.map(k=>{
-        const b = BY_ISBN.get(k); if(!b) return "";
-        return `<span class="tag" data-open="${esc(k)}">${esc(b.title)}</span>`;
-      }).join("")
-    : `<span style="color:var(--sub);font-size:12px">点开一本书会自动加入浏览记录</span>`;
-}
-
-function renderGrid(list, startRank){
-  if(!list.length) return empty("这一类暂时没有书，换个筛选看看");
-  return `<div class="book-grid">${list.map((b,i)=>itemHtml(b, startRank!=null?startRank+i:null)).join("")}</div>`;
+function rowHtml(title, books){
+  return `<div class="book-row">
+    <div class="row-title">${title}</div>
+    <div class="row-scroll">${books.map(b=>cardHtml(b)).join("")}</div>
+  </div>`;
 }
 
 function renderAll(){
-  const beh = getBehavior();
-  const slog = getSearchLog();
-  const hasBehavior = Object.keys(beh).length>0 || slog.length>0;
+  const pref = getPref();
   const kw = searchInput.value.trim();
 
-  let html = filterBarHtml();
+  let html = "";
+  // 子分类筛选栏
+  const subcats = [...new Set(BOOKS.map(b=>b.subcat).filter(Boolean))].sort();
+  html += `<div class="subcat-bar">`;
+  html += `<span class="subcat-chip ${activeSubcat===""?"on":""}" data-sub="">全部</span>`;
+  for(const sc of subcats){
+    html += `<span class="subcat-chip ${activeSubcat===sc?"on":""}" data-sub="${esc(sc)}">${subcatIcon(sc)} ${subcatName(sc)}</span>`;
+  }
+  html += `</div>`;
+
   if(kw){
-    logSearch(kw);
-    const hits = applyFilter(searchBooks(kw));
-    html += section("搜索结果", `${hits.length} 本`);
-    html += hits.length ? renderGrid(hits) : empty("没有找到匹配的书，换个关键词试试");
-  } else if(hasBehavior){
-    const recs = applyFilter(recommend(beh, slog, 40));
-    html += section("🎯 为你推荐", "根据你搜过、看过的书挑选");
-    html += recs.length ? renderGrid(recs) : empty("再点开几本书，或换个筛选条件");
+    let hits = searchBooks(kw);
+    if(activeSubcat) hits = hits.filter(b=>b.subcat===activeSubcat);
+    html += `<div class="row-title">🔍 搜索结果 · ${hits.length} 本</div>`;
+    html += hits.length
+      ? `<div class="row-scroll single">${hits.map((b,i)=>cardHtml(b,i+1)).join("")}</div>`
+      : `<div class="empty">没有找到「${esc(kw)}」，换个关键词试试</div>`;
+  } else if(activeSubcat){
+    // 选中了子分类，显示该分类下所有书
+    const list = BOOKS.filter(b=>b.subcat===activeSubcat).sort((a,b)=>b.pop-a.pop);
+    html += `<div class="row-title">${subcatIcon(activeSubcat)} ${subcatName(activeSubcat)} · ${list.length} 本</div>`;
+    html += list.length
+      ? `<div class="row-scroll single">${list.map((b,i)=>cardHtml(b,i+1)).join("")}</div>`
+      : `<div class="empty">这个分类暂时没有书</div>`;
   } else {
-    const hot = applyFilter([...BOOKS].sort((a,b)=>b.pop-a.pop).slice(0,30));
-    if(hot.length){
-      html += section("🔥 大家都在读", "热门书精选");
-      html += renderGrid(hot);
-    }
-    const cn = applyFilter(BOOKS.filter(b=>b.lang==="cn").sort((a,b)=>b.rating-a.rating).slice(0,24));
-    if(cn.length){
-      html += section("🇨🇳 中文高分精选", "真实豆瓣高分书，点开看详情");
-      html += renderGrid(cn);
-    }
-    const en = applyFilter(BOOKS.filter(b=>b.lang==="en" && b.rating>0).sort((a,b)=>b.rating-a.rating).slice(0,24));
-    if(en.length){
-      html += section("🌍 英文经典高分", "经典外文原版书");
-      html += renderGrid(en);
+    const rows = buildRows(pref);
+    for(const r of rows){
+      html += rowHtml(r.title, r.books);
     }
   }
   main.innerHTML = html;
-  renderHistory();
 }
 
-// ---------- 详情弹窗 ----------
+// ---------- 详情 ----------
 const overlay = document.getElementById("overlay");
 const modal = document.getElementById("modal");
+
 function openDetail(isbn){
   const b = BY_ISBN.get(isbn); if(!b) return;
   logView(isbn);
-  const s = stars(b);
-  const rc = b.rc>0 ? ` · ${b.rc.toLocaleString()} 人评分` : "";
-  const tags = [b.category, b.style, b.length].filter(Boolean).map(t=>`<span class="t">${esc(t)}</span>`).join("");
-  const lang = b.lang==="cn" ? "中文" : "英文";
+  const st = stars(b);
+  const rc = b.rc>0 ? ` · ${b.rc.toLocaleString()}人评` : "";
+  const subcat = b.subcat ? `<span class="t">${subcatIcon(b.subcat)} ${subcatName(b.subcat)}</span>` : "";
   const descBlock = b.desc
     ? `<div class="desc-block"><h4>内容简介</h4><div class="desc-body">${esc(b.desc)}</div></div>`
-    : `<div class="desc-block"><h4>内容简介</h4><div class="desc-body" style="color:var(--sub)">（本书暂无简介）</div></div>`;
+    : `<div class="desc-block"><div class="desc-body" style="color:var(--sub)">（暂无简介）</div></div>`;
   modal.innerHTML = `
     <div class="modal-head">
       ${coverHtml(b)}
       <div style="flex:1;min-width:0">
-        <h2>《${esc(b.title_zh||b.title)}》${b.title_zh&&b.title!==b.title_zh?`<div class="meta" style="margin-top:2px">原名：${esc(b.title)}</div>`:""}</h2>
+        <h2>《${esc(b.title_zh||b.title)}》</h2>
         <div class="meta">作者：${esc(b.author)}</div>
-        <div class="meta">出版社：${esc(b.publisher)}（${b.year}）</div>
-        <div class="meta">语言：${lang} · ISBN：${esc(b.isbn)}</div>
-        <div class="tags">${tags}</div>
-        <div class="stars" style="color:#c77e2e;margin-top:6px">${s}${rc}</div>
+        <div class="meta">${b.year} · ${esc(b.publisher)}</div>
+        <div class="tags">${subcat}<span class="t">${esc(b.length||"长篇")}</span></div>
+        ${st?`<div class="stars" style="color:#c77e2e;margin-top:6px">${st}${rc}</div>`:""}
       </div>
     </div>
     ${descBlock}
@@ -259,7 +316,7 @@ function openDetail(isbn){
   overlay.hidden = false;
 }
 
-// ---------- 事件绑定 ----------
+// ---------- 事件 ----------
 let debounce;
 searchInput.addEventListener("input", ()=>{
   clearTimeout(debounce);
@@ -267,38 +324,46 @@ searchInput.addEventListener("input", ()=>{
 });
 
 main.addEventListener("click", (e)=>{
-  // 分类标签
-  const chip = e.target.closest(".fchip");
+  // 子分类筛选
+  const chip = e.target.closest(".subcat-chip");
   if(chip){
-    state[chip.dataset.dim] = chip.dataset.v;
+    activeSubcat = chip.dataset.sub || "";
     renderAll();
     return;
   }
-  const item = e.target.closest(".book-item");
-  if(item) openDetail(item.dataset.isbn);
+  const card = e.target.closest(".card");
+  if(card) openDetail(card.dataset.isbn);
 });
-historyEl.addEventListener("click", (e)=>{
-  const tag = e.target.closest(".tag");
-  if(tag) openDetail(tag.dataset.open);
-});
+
 overlay.addEventListener("click", (e)=>{
   if(e.target===overlay || e.target.classList.contains("modal-close")) overlay.hidden = true;
 });
-document.getElementById("clear-btn").addEventListener("click", ()=>{
-  localStorage.removeItem(STORE);
-  localStorage.removeItem(SLOG);
-  renderAll();
-  toast("已清空浏览记录");
+
+// 问卷事件
+document.getElementById("ob-body").addEventListener("click", (e)=>{
+  const opt = e.target.closest(".ob-opt");
+  if(!opt) return;
+  const step = OB_STEPS[obStep];
+  const v = opt.dataset.v;
+  if(step.multi){
+    if(!obAnswers[step.key]) obAnswers[step.key] = [];
+    const idx = obAnswers[step.key].indexOf(v);
+    if(idx>=0) obAnswers[step.key].splice(idx,1);
+    else obAnswers[step.key].push(v);
+  } else {
+    obAnswers[step.key] = v;
+  }
+  renderObStep();
 });
 
-function toast(msg){
-  let t = document.querySelector(".toast");
-  if(!t){ t = document.createElement("div"); t.className="toast"; document.body.appendChild(t); }
-  t.textContent = msg;
-  t.classList.add("show");
-  clearTimeout(t._h);
-  t._h = setTimeout(()=>t.classList.remove("show"), 1600);
-}
+document.getElementById("ob-next").addEventListener("click", ()=>{
+  if(obStep < OB_STEPS.length-1){ obStep++; renderObStep(); }
+  else finishOnboarding();
+});
+document.getElementById("ob-back").addEventListener("click", ()=>{
+  if(obStep>0){ obStep--; renderObStep(); }
+});
 
-// ---------- 启动 ----------
+document.getElementById("retry-btn").addEventListener("click", showOnboarding);
+
 loadData();
