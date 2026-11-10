@@ -3,48 +3,50 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#3a7d44">
-<meta name="description" content="一个简单的书籍推荐应用，根据你的浏览自动推荐你可能喜欢的书">
-<title>阅荐 · 书籍推荐</title>
+<meta name="theme-color" name="theme-color" content="#c2185b">
+<meta name="description" content="阅荐言情 · 发现你的下一本心动小说">
+<title>阅荐言情 · 发现你的心动小说</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
 
-<header class="topbar">
-  <div class="brand">
-    <span class="logo">📚</span>
-    <div class="brand-txt">
-      <h1>阅荐</h1>
-      <p>根据你的浏览，推荐你可能喜欢的书</p>
+<!-- 首屏引导问卷 -->
+<div id="onboarding" class="onboarding" hidden>
+  <div class="ob-card">
+    <h2 id="ob-title">欢迎来到阅荐言情</h2>
+    <p id="ob-sub">花10秒告诉我们你的偏好，推荐更懂你</p>
+    <div id="ob-body"></div>
+    <div class="ob-nav">
+      <button id="ob-back" class="ghost" hidden>上一步</button>
+      <button id="ob-next" class="primary">开始</button>
     </div>
   </div>
+</div>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">💘</span>
+    <div class="brand-txt">
+      <h1>阅荐言情</h1>
+      <p id="greeting">发现你的下一本心动小说</p>
+    </div>
+  </div>
+  <button id="retry-btn" class="ghost" title="重新选择偏好" hidden>🎯 重选偏好</button>
 </header>
 
-<!-- 搜索 -->
 <section class="search-wrap">
-  <input id="search-input" type="search" placeholder="搜书名 / 作者 / 出版社（中英文都可）" autocomplete="off">
+  <input id="search-input" type="search" placeholder="搜书名 / 作者（中英文都可）" autocomplete="off">
 </section>
 
-<!-- 主内容 -->
 <main id="main"></main>
 
-<!-- 底部：浏览记录 / 清空 -->
-<footer class="foot" id="foot">
-  <div class="foot-head">
-    <span>📚 我的浏览记录</span>
-    <button id="clear-btn" class="ghost">清空</button>
-  </div>
-  <div id="history" class="history"></div>
-</footer>
-
-<!-- 详情弹窗 -->
 <div id="overlay" class="overlay" hidden>
   <div class="modal" id="modal"></div>
 </div>
 
-<script src="app.js?v=2"></script>
+<script src="app.js?v=3"></script>
 <script>
 if("serviceWorker" in navigator){
   window.addEventListener("load", ()=>{ navigator.serviceWorker.register("sw.js").catch(()=>{}); });
