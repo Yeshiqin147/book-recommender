@@ -144,6 +144,34 @@ def main():
             ol_added += 1
         print(f"OL books added: {ol_added}")
 
+    # === 追加 Open Library 第二批 ===
+    ol2_path = DATA / "ol_books2.csv"
+    if ol2_path.exists():
+        ol2 = pd.read_csv(ol2_path, encoding="utf-8-sig", dtype={"isbn": str})
+        existing_titles2 = {x["title"].lower().strip() for x in records}
+        ol2_added = 0
+        for _, r in ol2.iterrows():
+            t = str(r["title"]).strip()
+            if t.lower() in existing_titles2:
+                continue
+            existing_titles2.add(t.lower())
+            rb = float(r["rating"]) * 5.0 / 4.0 if pd.notna(r["rating"]) else 0.0
+            rc = float(r["rc"]) if pd.notna(r["rc"]) else 0.0
+            pop = rb * math.log1p(rc) if rc > 0 else 0.0
+            desc = (r["desc"] if isinstance(r["desc"], str) else "") or ""
+            t_zh = EN_TITLE_ZH.get(norm_en_title(t), "")
+            cat, style, length = infer_tags(t, t_zh, desc, "")
+            records.append({
+                "isbn": str(r["isbn"]), "title": t, "title_zh": t_zh,
+                "author": str(r["author"]),
+                "year": int(r["year"]) if pd.notna(r["year"]) else 0,
+                "publisher": "Open Library", "lang": "en", "category": cat,
+                "style": style, "length": length,
+                "rating": round(rb, 2), "rc": int(rc), "desc": desc.strip(), "pop": pop,
+            })
+            ol2_added += 1
+        print(f"OL2 books added: {ol2_added}")
+
     max_pop_en = max((x["pop"] for x in records), default=0.0)
     for x in records:
         x["pop_en"] = x["pop"]
