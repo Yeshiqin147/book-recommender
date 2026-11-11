@@ -1,10 +1,10 @@
-/* 阅荐 PWA Service Worker：离线缓存，网络优先保证更新 */
-const CACHE = "yujian-v2";
+/* 阅荐言情 PWA Service Worker v4 */
+const CACHE = "yujian-romance-v4";
 const ASSETS = [
   "./",
   "./index.html",
-  "./style.css?v=2",
-  "./app.js?v=2",
+  "./style.css?v=4",
+  "./app.js?v=4",
   "./books.json",
   "./manifest.json",
   "./icons/icon-192.png",
@@ -12,7 +12,8 @@ const ASSETS = [
 ];
 
 self.addEventListener("install", (e)=>{
-  e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting()));
+  self.skipWaiting();
+  e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).catch(()=>{}));
 });
 
 self.addEventListener("activate", (e)=>{
@@ -26,12 +27,12 @@ self.addEventListener("fetch", (e)=>{
   if(req.method!=="GET") return;
   const url = new URL(req.url);
   if(url.origin!==location.origin) return;
-  // 网络优先：先尝试拿最新版，失败才用缓存
+  // 网络优先：先拿最新版，失败才用缓存
   e.respondWith(
     fetch(req).then(res=>{
       const copy = res.clone();
-      caches.open(CACHE).then(c=>c.put(req, copy));
+      caches.open(CACHE).then(c=>c.put(req, copy)).catch(()=>{});
       return res;
-    }).catch(()=> caches.match(req).then(hit=> hit || caches.match("./index.html")))
+    }).catch(()=> caches.match(req).then(hit=> hit || caches.match("./")))
   );
 });
