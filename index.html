@@ -7,8 +7,9 @@
 <meta name="description" content="阅荐言情 · 发现你的下一本心动小说">
 <title>阅荐言情 · 发现你的心动小说</title>
 <link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="style.css?v=4">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 
@@ -33,7 +34,10 @@
       <p id="greeting">发现你的下一本心动小说</p>
     </div>
   </div>
-  <button id="retry-btn" class="ghost" title="重新选择偏好" hidden>🎯 重选偏好</button>
+  <div class="top-actions">
+    <button id="game-btn" type="button" class="ghost" title="纯文字互动故事">🎮 互动故事</button>
+    <button id="retry-btn" type="button" class="ghost" title="重新选择偏好" hidden>🎯 重选偏好</button>
+  </div>
 </header>
 
 <section class="search-wrap">
@@ -46,7 +50,12 @@
   <div class="modal" id="modal"></div>
 </div>
 
-<script src="app.js?v=4"></script>
+<div id="game-overlay" class="overlay" hidden>
+  <div id="game-content" class="game-panel"></div>
+</div>
+
+<script src="story-data.js?v=5"></script>
+<script src="app.js?v=5"></script>
 <script>
 if("serviceWorker" in navigator){
   window.addEventListener("load", ()=>{ navigator.serviceWorker.register("sw.js").catch(()=>{}); });
