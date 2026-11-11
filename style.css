@@ -1,4 +1,5 @@
 /* 阅荐言情 · 粉系言情风格 + Netflix横向卡片流 */
+[hidden]{display:none !important}
 :root{
   --bg:#fff5f7; --card:#fff; --text:#333; --sub:#999;
   --primary:#e91e63; --primary-d:#ad1457; --border:#fce4ec;
