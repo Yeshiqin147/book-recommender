@@ -14,10 +14,15 @@ let BOOKS = [];
 let BY_ISBN = new Map();
 let activeSubcat = ""; // 当前选中的子分类筛选
 
-// ---------- 封面配色（言情粉系） ----------
+// ---------- 封面配色（言情粉系 + 本地差异化装饰） ----------
 const ROMANCE_COLORS = [
   "#e91e63","#ad1457","#c2185b","#d81b60","#ec407a",
   "#f06292","#f48fb1","#880e4f","#a0206b","#b83a6e",
+];
+const COVER_PALETTE = [
+  "#e91e63","#ad1457","#c2185b","#d81b60","#ec407a","#f06292","#f48fb1","#880e4f",
+  "#a0206b","#b83a6e","#7b1fa2","#9c27b0","#6a1b9a","#00838f","#00acc1","#00897b",
+  "#26a69a","#5c6bc0","#3949ab","#42a5f5","#5d4037","#795548","#6d4c41","#546e75",
 ];
 const SUBCAT_COLORS = {
   "古言":"#ad1457","现言":"#e91e63","仙侠":"#7b1fa2","穿越":"#00897b",
@@ -27,8 +32,20 @@ const SUBCAT_COLORS = {
 };
 
 function coverHtml(b){
-  const color = SUBCAT_COLORS[b.subcat] || ROMANCE_COLORS[crc32(b.isbn) % ROMANCE_COLORS.length];
-  return `<div class="cover" style="background:linear-gradient(160deg,${color} 0%,${color}dd 100%)">
+  const h = crc32(b.isbn);
+  const base = SUBCAT_COLORS[b.subcat] || COVER_PALETTE[h % COVER_PALETTE.length];
+  const dx = 18 + (h % 58), dy = 12 + ((h >>> 3) % 46), r = 28 + ((h >>> 6) % 38);
+  const type = h % 3;
+  let deco = "";
+  if(type===0){
+    deco = `<span class="cd-shape" style="left:${dx}%;top:${dy}%;width:${r}px;height:${r}px;border-radius:50%"></span>`;
+  } else if(type===1){
+    deco = `<span class="cd-shape" style="right:${dx}%;bottom:${dy}%;width:${r+14}px;height:${r+14}px;border-radius:50%;border:2px solid rgba(255,255,255,.35)"></span>`;
+  } else {
+    deco = `<span class="cd-lines" style="left:${dx}%;top:${dy}%"><i></i><i></i><i></i></span>`;
+  }
+  return `<div class="cover" style="background:linear-gradient(160deg,${base} 0%,${base}dd 100%)">
+    ${deco}
     <div class="ctitle">《${esc(b.title_zh||b.title)}》</div>
     <div class="cauthor">${esc(b.author)}</div>
   </div>`;
@@ -269,14 +286,14 @@ function renderAll(){
     if(activeSubcat) hits = hits.filter(b=>b.subcat===activeSubcat);
     html += `<div class="row-title">🔍 搜索结果 · ${hits.length} 本</div>`;
     html += hits.length
-      ? `<div class="row-scroll single">${hits.map((b,i)=>cardHtml(b,i+1)).join("")}</div>`
+      ? `<div class="book-grid">${hits.map((b,i)=>cardHtml(b,i+1)).join("")}</div>`
       : `<div class="empty">没有找到「${esc(kw)}」，换个关键词试试</div>`;
   } else if(activeSubcat){
-    // 选中了子分类，显示该分类下所有书
+    // 选中了子分类，显示该分类下所有书（书架网格）
     const list = BOOKS.filter(b=>b.subcat===activeSubcat).sort((a,b)=>b.pop-a.pop);
     html += `<div class="row-title">${subcatIcon(activeSubcat)} ${subcatName(activeSubcat)} · ${list.length} 本</div>`;
     html += list.length
-      ? `<div class="row-scroll single">${list.map((b,i)=>cardHtml(b,i+1)).join("")}</div>`
+      ? `<div class="book-grid">${list.map((b,i)=>cardHtml(b,i+1)).join("")}</div>`
       : `<div class="empty">这个分类暂时没有书</div>`;
   } else {
     const rows = buildRows(pref);
@@ -290,6 +307,73 @@ function renderAll(){
 // ---------- 详情 ----------
 const overlay = document.getElementById("overlay");
 const modal = document.getElementById("modal");
+
+// ---------- 文字互动故事 ----------
+const gameOverlay = document.getElementById("game-overlay");
+const gameContent = document.getElementById("game-content");
+let curStory = null;
+let curNode = "";
+
+function openGame(){
+  gameOverlay.hidden = false;
+  renderStoryList();
+}
+function closeGame(){ gameOverlay.hidden = true; }
+
+function renderStoryList(){
+  const list = (window.STORIES||[]).map(s=>`
+    <div class="story-card" data-story="${esc(s.id)}">
+      <div class="story-icon">${s.icon}</div>
+      <div class="story-info">
+        <div class="story-title">${esc(s.title)}</div>
+        <div class="story-desc">${esc(s.desc)}</div>
+      </div>
+      <button class="story-start" data-story="${esc(s.id)}">开始</button>
+    </div>`).join("");
+  gameContent.innerHTML = `
+    <div class="game-head">
+      <h3>🎮 文字互动故事</h3>
+      <p>纯文字分支剧情 · 你的选择决定结局</p>
+    </div>
+    <div class="story-list">${list || '<div class="empty">故事筹备中，敬请期待</div>'}</div>
+    <button class="game-btn ghost" data-gact="close">返回首页</button>`;
+}
+
+function openStory(id){
+  curStory = (window.STORIES||[]).find(s=>s.id===id);
+  if(!curStory) return;
+  curNode = curStory.start;
+  renderNode();
+}
+
+function renderNode(){
+  const node = curStory.nodes[curNode];
+  if(!node){ renderStoryList(); return; }
+  if(node.ending){
+    const e = node.ending;
+    gameContent.innerHTML = `
+      <div class="game-head"><h3>${curStory.icon} ${esc(curStory.title)}</h3></div>
+      <div class="ending ending-${e.tone}">
+        <div class="ending-title">${esc(e.title)}</div>
+        <div class="ending-text">${esc(e.text)}</div>
+      </div>
+      <div class="game-btns">
+        <button class="game-btn primary" data-gact="restart">再来一次</button>
+        <button class="game-btn ghost" data-gact="list">故事列表</button>
+      </div>`;
+    return;
+  }
+  const choices = node.choices.map((c,i)=>
+    `<button class="story-choice" data-to="${esc(c.to)}">${esc(c.label)}</button>`).join("");
+  gameContent.innerHTML = `
+    <div class="game-head">
+      <h3>${curStory.icon} ${esc(curStory.title)}</h3>
+      <button class="game-back" data-gact="list">‹ 故事列表</button>
+    </div>
+    <div class="story-text">${esc(node.text)}</div>
+    <div class="story-choices">${choices}</div>`;
+}
+
 
 function openDetail(isbn){
   const b = BY_ISBN.get(isbn); if(!b) return;
@@ -320,6 +404,9 @@ function openDetail(isbn){
 let debounce;
 searchInput.addEventListener("input", ()=>{
   clearTimeout(debounce);
+  const kw = searchInput.value.trim();
+  // 搜索命中也作为兴趣信号计入行为库，与问卷偏好叠加推荐
+  if(kw) searchBooks(kw).slice(0,10).forEach(b=>logView(b.isbn));
   debounce = setTimeout(renderAll, 150);
 });
 
@@ -338,6 +425,22 @@ main.addEventListener("click", (e)=>{
 overlay.addEventListener("click", (e)=>{
   if(e.target===overlay || e.target.classList.contains("modal-close")) overlay.hidden = true;
 });
+
+// 互动故事事件
+gameContent.addEventListener("click", (e)=>{
+  const start = e.target.closest(".story-start");
+  if(start){ openStory(start.dataset.story); return; }
+  const choice = e.target.closest(".story-choice");
+  if(choice){ curNode = choice.dataset.to; renderNode(); return; }
+  const g = e.target.closest("[data-gact]");
+  if(!g) return;
+  const act = g.dataset.gact;
+  if(act==="close") closeGame();
+  else if(act==="list") renderStoryList();
+  else if(act==="restart") openStory(curStory.id);
+});
+document.getElementById("game-btn").addEventListener("click", openGame);
+gameOverlay.addEventListener("click", (e)=>{ if(e.target===gameOverlay) closeGame(); });
 
 // 问卷事件
 document.getElementById("ob-body").addEventListener("click", (e)=>{

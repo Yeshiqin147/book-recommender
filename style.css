@@ -46,22 +46,29 @@ main{padding:8px 0}
   border-left:4px solid var(--primary);padding-left:12px}
 .row-scroll{display:flex;gap:12px;overflow-x:auto;padding:4px 16px;
   -webkit-overflow-scrolling:touch;scrollbar-width:thin}
-.row-scroll.single{flex-direction:column;overflow-x:hidden;overflow-y:auto}
-.row-scroll.single .card{width:100%}
 .row-scroll::-webkit-scrollbar{height:4px}
 .row-scroll::-webkit-scrollbar-thumb{background:#f8bbd0;border-radius:2px}
+
+/* 书架网格（子分类 / 搜索结果） */
+.book-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));
+  gap:16px;padding:4px 16px;overflow:visible}
+.book-grid .card{flex:none;width:100%}
+.book-grid .cover{width:100%}
 
 /* 卡片 */
 .card{flex:0 0 130px;cursor:pointer;transition:transform .25s, box-shadow .25s}
 .card:hover{transform:scale(1.06) translateY(-4px);z-index:10;
   box-shadow:0 8px 24px rgba(233,30,99,.2)}
 .card-cover-wrap{position:relative;margin-bottom:6px}
-.cover{width:130px;height:185px;border-radius:8px;overflow:hidden;
+.cover{position:relative;width:130px;height:185px;border-radius:8px;overflow:hidden;
   display:flex;flex-direction:column;justify-content:flex-end;padding:10px;
   box-shadow:0 2px 8px rgba(0,0,0,.12)}
-.ctitle{color:#fff;font-size:12px;font-weight:700;line-height:1.3;
+.cd-shape{position:absolute;background:rgba(255,255,255,.16);z-index:0}
+.cd-lines{position:absolute;z-index:0;display:flex;flex-direction:column;gap:5px}
+.cd-lines i{display:block;width:34px;height:2px;background:rgba(255,255,255,.25);border-radius:2px}
+.ctitle{position:relative;z-index:1;color:#fff;font-size:12px;font-weight:700;line-height:1.3;
   text-shadow:0 1px 3px rgba(0,0,0,.4)}
-.cauthor{color:rgba(255,255,255,.85);font-size:10px;margin-top:4px}
+.cauthor{position:relative;z-index:1;color:rgba(255,255,255,.85);font-size:10px;margin-top:4px}
 .rank-badge{position:absolute;top:-4px;left:-4px;background:var(--primary);color:#fff;
   font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;z-index:2;
   box-shadow:0 2px 4px rgba(0,0,0,.2)}
@@ -116,6 +123,40 @@ main{padding:8px 0}
 /* 重选偏好按钮 */
 #retry-btn{background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4);
   padding:6px 14px;border-radius:14px;font-size:12px;cursor:pointer}
+.top-actions{display:flex;gap:8px;align-items:center}
+
+/* ===== 文字互动故事 ===== */
+.game-panel{background:#fff;border-radius:16px;max-width:560px;width:100%;max-height:85vh;
+  overflow-y:auto;padding:24px;box-shadow:0 16px 48px rgba(0,0,0,.2)}
+.game-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:10px}
+.game-head h3{font-size:18px;color:var(--primary-d)}
+.game-head p{font-size:12px;color:var(--sub);margin-top:2px}
+.game-back{background:none;border:none;color:var(--primary);font-size:13px;cursor:pointer;white-space:nowrap}
+.story-list{display:flex;flex-direction:column;gap:12px;margin-bottom:18px}
+.story-card{display:flex;align-items:center;gap:14px;padding:16px;border:2px solid var(--border);
+  border-radius:14px;transition:all .2s}
+.story-card:hover{border-color:var(--primary);background:#fff5f7}
+.story-icon{font-size:30px;flex-shrink:0}
+.story-info{flex:1;min-width:0}
+.story-title{font-size:15px;font-weight:700;margin-bottom:4px}
+.story-desc{font-size:12px;color:var(--sub);line-height:1.5}
+.story-start{flex-shrink:0;background:var(--primary);color:#fff;border:none;padding:8px 18px;
+  border-radius:16px;font-size:13px;cursor:pointer}
+.story-start:hover{background:var(--primary-d)}
+.story-text{font-size:15px;line-height:1.9;color:#444;background:#fff5f7;border-radius:12px;
+  padding:18px;margin-bottom:18px;white-space:pre-wrap}
+.story-choices{display:flex;flex-direction:column;gap:10px}
+.story-choice{text-align:left;padding:14px 16px;border:2px solid var(--border);border-radius:12px;
+  background:#fff;font-size:14px;cursor:pointer;transition:all .2s;color:var(--text)}
+.story-choice:hover{border-color:var(--primary);background:#fff5f7}
+.ending{border-radius:14px;padding:20px;margin-bottom:18px}
+.ending-good{background:#e8f5e9;border:1px solid #a5d6a7}
+.ending-ok{background:#e3f2fd;border:1px solid #90caf9}
+.ending-bittersweet{background:#ede7f6;border:1px solid #b39ddb}
+.ending-title{font-size:16px;font-weight:700;margin-bottom:8px;color:var(--primary-d)}
+.ending-text{font-size:14px;line-height:1.8;color:#555;white-space:pre-wrap}
+.game-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.game-btn{padding:10px 24px;border-radius:20px;font-size:14px;cursor:pointer}
 
 /* 响应式：手机 */
 @media(max-width:480px){
