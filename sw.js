@@ -1,11 +1,11 @@
-/* 阅荐言情 PWA Service Worker v5 */
-const CACHE = "yujian-romance-v5";
+/* 阅荐言情 PWA Service Worker v6 */
+const CACHE = "yujian-romance-v6";
 const ASSETS = [
   "./",
   "./index.html",
-  "./style.css?v=5",
-  "./app.js?v=5",
-  "./story-data.js?v=5",
+  "./style.css?v=6",
+  "./app.js?v=6",
+  "./story-data.js?v=6",
   "./books.json",
   "./manifest.json",
   "./icons/icon-192.png",

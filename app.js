@@ -34,18 +34,23 @@ const SUBCAT_COLORS = {
 function coverHtml(b){
   const h = crc32(b.isbn);
   const base = SUBCAT_COLORS[b.subcat] || COVER_PALETTE[h % COVER_PALETTE.length];
+  const hasImg = !!b.cover;
   const dx = 18 + (h % 58), dy = 12 + ((h >>> 3) % 46), r = 28 + ((h >>> 6) % 38);
-  const type = h % 3;
   let deco = "";
-  if(type===0){
-    deco = `<span class="cd-shape" style="left:${dx}%;top:${dy}%;width:${r}px;height:${r}px;border-radius:50%"></span>`;
-  } else if(type===1){
-    deco = `<span class="cd-shape" style="right:${dx}%;bottom:${dy}%;width:${r+14}px;height:${r+14}px;border-radius:50%;border:2px solid rgba(255,255,255,.35)"></span>`;
-  } else {
-    deco = `<span class="cd-lines" style="left:${dx}%;top:${dy}%"><i></i><i></i><i></i></span>`;
+  if(!hasImg){
+    const type = h % 3;
+    if(type===0){
+      deco = `<span class="cd-shape" style="left:${dx}%;top:${dy}%;width:${r}px;height:${r}px;border-radius:50%"></span>`;
+    } else if(type===1){
+      deco = `<span class="cd-shape" style="right:${dx}%;bottom:${dy}%;width:${r+14}px;height:${r+14}px;border-radius:50%;border:2px solid rgba(255,255,255,.35)"></span>`;
+    } else {
+      deco = `<span class="cd-lines" style="left:${dx}%;top:${dy}%"><i></i><i></i><i></i></span>`;
+    }
   }
-  return `<div class="cover" style="background:linear-gradient(160deg,${base} 0%,${base}dd 100%)">
-    ${deco}
+  const bg = hasImg ? "" : `style="background:linear-gradient(160deg,${base} 0%,${base}dd 100%)"`;
+  const img = hasImg ? `<img class="cover-img" src="${esc(b.cover)}" alt="" loading="lazy">` : "";
+  return `<div class="cover" ${bg}>
+    ${img}${deco}
     <div class="ctitle">《${esc(b.title_zh||b.title)}》</div>
     <div class="cauthor">${esc(b.author)}</div>
   </div>`;
